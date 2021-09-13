@@ -15,6 +15,7 @@
 #include <list>
 #include <mutex>  // NOLINT
 #include <vector>
+#include <unordered_map>
 
 #include "buffer/replacer.h"
 #include "common/config.h"
@@ -46,6 +47,20 @@ class LRUReplacer : public Replacer {
   size_t Size() override;
 
  private:
+  // valid, frame_id
+  struct page_info {
+    bool pinned;
+    bool referenced;
+    bool vaild;
+
+    page_info(): pinned(true), referenced(false), vaild(false) {}
+  };
+
+  std::unordered_map<frame_id_t, page_info> _page_table;
+  std::vector<frame_id_t> _slot;
+  size_t _page_cnt;
+  size_t _pointer;
+  std::mutex lock;
   // TODO(student): implement me!
 };
 
