@@ -48,6 +48,9 @@ class LRUReplacer : public Replacer {
 
  private:
   // TODO(student): implement me!
+  std::list<frame_id_t> _list;
+  std::unordered_map<frame_id_t, std::list<frame_id_t>::iterator> _table;
+  std::mutex _lock;
 };
 
 }  // namespace bustub
