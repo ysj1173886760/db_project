@@ -49,6 +49,9 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
   _table[frame_id] = _list.begin();
 }
 
-size_t LRUReplacer::Size() { return _list.size(); }
+size_t LRUReplacer::Size() {
+    std::lock_guard<std::mutex> lck(_lock);
+    return _list.size();
+}
 
 }  // namespace bustub
