@@ -155,7 +155,7 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
       lb = mid;
     }
   }
-  if (array[ub].first == key) {
+  if (comparator(array[ub].first, key) == 0) {
     *value = array[ub].second;
     return true;
   }
@@ -182,7 +182,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
       lb = mid;
     }
   }
-  if (array[ub].first == key) {
+  if (comparator(array[ub].first, key) == 0) {
     for (int i = ub; i < GetSize() - 1; i++) {
       array[i] = array[i + 1];
     }

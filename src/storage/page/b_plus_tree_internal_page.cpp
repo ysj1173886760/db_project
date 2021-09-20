@@ -208,7 +208,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveAllTo(BPlusTreeInternalPage *recipient,
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveFirstToEndOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key, BufferPoolManager *buffer_pool_manager) {
-  recipient->CopyLastFrom(std::make_pair(middle_key, array[0].second));
+  recipient->CopyLastFrom(std::make_pair(middle_key, array[0].second), buffer_pool_manager);
   Remove(0);
 }
 
@@ -236,7 +236,7 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(const MappingType &pair, Buffe
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key, BufferPoolManager *buffer_pool_manager) {
-  recipient->CopyFirstFrom(std::make_pair(middle_key, array[GetSize() - 1].second));
+  recipient->CopyFirstFrom(std::make_pair(middle_key, array[GetSize() - 1].second), buffer_pool_manager);
   Remove(GetSize() - 1);
 }
 
