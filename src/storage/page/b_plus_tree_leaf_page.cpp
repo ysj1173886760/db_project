@@ -103,11 +103,16 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
         lb = mid;
       }
     }
-    for (int i = GetSize(); i >= ub; i--) {
-      array[i] = array[i - 1];
+
+    // don't update for duplicated key
+    if (comparator(KeyAt(ub), key) != 0) {
+      for (int i = GetSize(); i >= ub; i--) {
+        array[i] = array[i - 1];
+      }
+      array[ub] = std::make_pair(key, value);
     }
-    array[ub] = std::make_pair(key, value);
   }
+
   IncreaseSize(1);
   return GetSize();
 }
@@ -156,7 +161,9 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
     }
   }
   if (comparator(array[ub].first, key) == 0) {
-    *value = array[ub].second;
+    if (value != nullptr) {
+      *value = array[ub].second;
+    }
     return true;
   }
   return false;
