@@ -202,6 +202,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
   recipient->CopyNFrom(array, GetSize());
   recipient->SetNextPageId(GetNextPageId());
+  SetSize(0);
 }
 
 /*****************************************************************************
