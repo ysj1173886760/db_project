@@ -91,7 +91,25 @@ const MappingType &B_PLUS_TREE_LEAF_PAGE_TYPE::GetItem(int index) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &value, const KeyComparator &comparator) {
-  return 0;
+  if (GetSize() == 0) {
+    array[0] = std::make_pair(key, value);
+  } else {
+    int lb = -1, ub = GetSize() - 1;
+    while (ub - lb > 1) {
+      int mid = (lb + ub) / 2;
+      if (comparator(KeyAt(mid), key) >= 0) {
+        ub = mid;
+      } else {
+        lb = mid;
+      }
+    }
+    for (int i = GetSize(); i >= ub; i--) {
+      array[i] = array[i - 1];
+    }
+    array[ub] = std::make_pair(key, value);
+  }
+  IncreaseSize(1);
+  return GetSize();
 }
 
 /*****************************************************************************
