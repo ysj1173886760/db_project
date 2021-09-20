@@ -30,7 +30,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, int max_size) {
   SetPageType(IndexPageType::LEAF_PAGE);
   SetMaxSize(max_size);
-  SetPageId(parent_id);
+  SetParentPageId(parent_id);
   SetPageId(page_id);
   SetSize(0);
 }
@@ -94,7 +94,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
   if (GetSize() == 0) {
     array[0] = std::make_pair(key, value);
   } else {
-    int lb = -1, ub = GetSize() - 1;
+    int lb = -1, ub = GetSize();
     while (ub - lb > 1) {
       int mid = (lb + ub) / 2;
       if (comparator(KeyAt(mid), key) >= 0) {
@@ -105,7 +105,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
     }
 
     // don't update for duplicated key
-    if (comparator(KeyAt(ub), key) != 0) {
+    if (ub == GetSize() || comparator(KeyAt(ub), key) != 0) {
       for (int i = GetSize(); i >= ub; i--) {
         array[i] = array[i - 1];
       }

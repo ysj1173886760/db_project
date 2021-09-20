@@ -15,6 +15,7 @@
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/header_page.h"
+#include "common/logger.h"
 
 namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
@@ -47,7 +48,10 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
   }
 
   Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
-  cur_page->RLatch();
+  if (cur_page == nullptr) {
+    throw Exception("out of memory");
+  }
+  // cur_page->RLatch();
   BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
 
   while (!bPlusTreePage->IsLeafPage()) {
@@ -55,8 +59,11 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
     page_id_t next_page_id = internalPage->Lookup(key, comparator_);
 
     Page *next_page = buffer_pool_manager_->FetchPage(next_page_id);
-    next_page->RLatch();
-    cur_page->RUnlatch();
+    if (next_page == nullptr) {
+      throw Exception("out of memory");
+    }
+    // next_page->RLatch();
+    // cur_page->RUnlatch();
     buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
     cur_page = next_page;
 
@@ -70,7 +77,7 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
     res = true;
     result->push_back(v);
   }
-  cur_page->RUnlatch();
+  // cur_page->RUnlatch();
   buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
   return res;
 }
@@ -127,7 +134,10 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
   Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
-  cur_page->RLatch();
+  if (cur_page == nullptr) {
+    throw Exception("out of memory");
+  }
+  // cur_page->RLatch();
   BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
 
   while (!bPlusTreePage->IsLeafPage()) {
@@ -135,8 +145,11 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     page_id_t next_page_id = internalPage->Lookup(key, comparator_);
 
     Page *next_page = buffer_pool_manager_->FetchPage(next_page_id);
-    next_page->RLatch();
-    cur_page->RUnlatch();
+    if (next_page == nullptr) {
+      throw Exception("out of memory");
+    }
+    // next_page->RLatch();
+    // cur_page->RUnlatch();
     buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
     cur_page = next_page;
 
@@ -150,16 +163,16 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     res = false;
   } else {
     // first we need to split
+    leafPage->Insert(key, value, comparator_);
     if (leafPage->GetSize() == leaf_max_size_) {
       LeafPage *new_node = Split<LeafPage>(leafPage);
       InsertIntoParent(leafPage, new_node->KeyAt(0), new_node, transaction);
+      leafPage->SetNextPageId(new_node->GetPageId());
       buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
-    } else {
-      leafPage->Insert(key, value, comparator_);
     }
   }
 
-  cur_page->RUnlatch();
+  // cur_page->RUnlatch();
   buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), res);
   return res;
 }
@@ -221,14 +234,17 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     buffer_pool_manager_->UnpinPage(new_page_id, true);
   } else {
     Page *parent_page = buffer_pool_manager_->FetchPage(old_node->GetParentPageId());
+    if (parent_page == nullptr) {
+      throw Exception("out of memory");
+    }
+
     InternalPage *internalPage = reinterpret_cast<InternalPage *>(parent_page->GetData());
 
+    internalPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
     if (internalPage->GetSize() == internal_max_size_) {
       InternalPage *new_node = Split<InternalPage>(internalPage);
       InsertIntoParent(internalPage, new_node->KeyAt(0), new_node, transaction);
       buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
-    } else {
-      internalPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
     }
   }
 }
