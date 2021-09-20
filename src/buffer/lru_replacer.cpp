@@ -17,7 +17,10 @@ namespace bustub {
 
 LRUReplacer::LRUReplacer(size_t num_pages) {}
 
-LRUReplacer::~LRUReplacer() = default;
+LRUReplacer::~LRUReplacer() {
+  _list.clear();
+  _table.clear();
+}
 
 bool LRUReplacer::Victim(frame_id_t *frame_id) {
   std::lock_guard<std::mutex> lck(_lock);
@@ -50,8 +53,8 @@ void LRUReplacer::Unpin(frame_id_t frame_id) {
 }
 
 size_t LRUReplacer::Size() {
-    std::lock_guard<std::mutex> lck(_lock);
-    return _list.size();
+  std::lock_guard<std::mutex> lck(_lock);
+  return _list.size();
 }
 
 }  // namespace bustub

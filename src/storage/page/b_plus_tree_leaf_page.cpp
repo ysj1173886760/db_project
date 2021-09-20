@@ -50,7 +50,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::SetNextPageId(page_id_t next_page_id) { next_pa
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::KeyIndex(const KeyType &key, const KeyComparator &comparator) const {
-  int lb = -1, ub = GetSize() - 1;
+  int lb = -1;
+  int ub = GetSize() - 1;
   while (ub - lb > 1) {
     int mid = (ub + lb) / 2;
     if (comparator(KeyAt(mid), key) >= 0) {
@@ -94,7 +95,8 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::Insert(const KeyType &key, const ValueType &valu
   if (GetSize() == 0) {
     array[0] = std::make_pair(key, value);
   } else {
-    int lb = -1, ub = GetSize();
+    int lb = -1;
+    int ub = GetSize();
     while (ub - lb > 1) {
       int mid = (lb + ub) / 2;
       if (comparator(KeyAt(mid), key) >= 0) {
@@ -151,7 +153,8 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::CopyNFrom(MappingType *items, int size) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, const KeyComparator &comparator) const {
-  int lb = -1, ub = GetSize() - 1;
+  int lb = -1;
+  int ub = GetSize() - 1;
   while (ub - lb > 1) {
     int mid = (ub + lb) / 2;
     if (comparator(KeyAt(mid), key) >= 0) {
@@ -180,7 +183,8 @@ bool B_PLUS_TREE_LEAF_PAGE_TYPE::Lookup(const KeyType &key, ValueType *value, co
  */
 INDEX_TEMPLATE_ARGUMENTS
 int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const KeyComparator &comparator) {
-  int lb = -1, ub = GetSize() - 1;
+  int lb = -1;
+  int ub = GetSize() - 1;
   while (ub - lb > 1) {
     int mid = (ub + lb) / 2;
     if (comparator(KeyAt(mid), key) >= 0) {

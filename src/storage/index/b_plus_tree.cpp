@@ -12,10 +12,10 @@
 #include <string>
 
 #include "common/exception.h"
+#include "common/logger.h"
 #include "common/rid.h"
 #include "storage/index/b_plus_tree.h"
 #include "storage/page/header_page.h"
-#include "common/logger.h"
 
 namespace bustub {
 INDEX_TEMPLATE_ARGUMENTS
@@ -198,12 +198,13 @@ N *BPLUSTREE_TYPE::Split(N *node) {
     leafPage->Init(new_page_id, node->GetParentPageId(), leaf_max_size_);
     reinterpret_cast<LeafPage *>(node)->MoveHalfTo(leafPage);
     return reinterpret_cast<N *>(leafPage);
-  } else {
-    InternalPage *internalPage = reinterpret_cast<InternalPage *>(new_page->GetData());
-    internalPage->Init(new_page_id, node->GetParentPageId(), internal_max_size_);
-    reinterpret_cast<InternalPage *>(node)->MoveHalfTo(internalPage, buffer_pool_manager_);
-    return reinterpret_cast<N *>(internalPage);
   }
+
+  // clang tidy made me do this, i don't want it neither.
+  InternalPage *internalPage = reinterpret_cast<InternalPage *>(new_page->GetData());
+  internalPage->Init(new_page_id, node->GetParentPageId(), internal_max_size_);
+  reinterpret_cast<InternalPage *>(node)->MoveHalfTo(internalPage, buffer_pool_manager_);
+  return reinterpret_cast<N *>(internalPage);
 }
 
 /*
@@ -216,7 +217,8 @@ N *BPLUSTREE_TYPE::Split(N *node) {
  * recursively if necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node, Transaction *transaction) {
+void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &key, BPlusTreePage *new_node,
+                                      Transaction *transaction) {
   if (old_node->IsRootPage()) {
     page_id_t new_page_id;
     Page *new_page = buffer_pool_manager_->NewPage(&new_page_id);
