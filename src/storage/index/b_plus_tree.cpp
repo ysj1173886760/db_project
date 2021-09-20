@@ -120,6 +120,8 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   leafPage->Insert(key, value, comparator_);
 
   root_page_id_ = new_page_id;
+  UpdateRootPageId();
+  
   buffer_pool_manager_->UnpinPage(new_page_id, true);
 }
 
@@ -227,6 +229,8 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     }
 
     root_page_id_ = new_page_id;
+    UpdateRootPageId();
+    
     InternalPage *internalPage = reinterpret_cast<InternalPage *>(new_page->GetData());
     internalPage->Init(new_page_id, INVALID_PAGE_ID, internal_max_size_);
     internalPage->PopulateNewRoot(old_node->GetPageId(), key, new_node->GetPageId());
