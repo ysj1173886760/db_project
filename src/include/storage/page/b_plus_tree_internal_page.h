@@ -61,6 +61,11 @@ class BPlusTreeInternalPage : public BPlusTreePage {
   void CopyNFrom(MappingType *items, int size, BufferPoolManager *buffer_pool_manager);
   void CopyLastFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
   void CopyFirstFrom(const MappingType &pair, BufferPoolManager *buffer_pool_manager);
+  // 后面的键值对就会自动映射到这个数组上
+  // 基类的成员一共是24个字节，对应了header的大小
+  // 当把page转化成internal_page的时候，前24个字节就会变成基类成员，即metadata
+  // 那么剩下的空间就会被映射到array中，使用array就可以直接访问对应的键值对
+  // 在cppreference中，这种用法是叫弹性（柔性）数组，必须出现在结构体的最后一个成员中，即映射了剩下的所有空间
   MappingType array[0];
 };
 }  // namespace bustub
