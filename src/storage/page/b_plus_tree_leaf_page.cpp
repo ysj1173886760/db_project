@@ -33,6 +33,7 @@ void B_PLUS_TREE_LEAF_PAGE_TYPE::Init(page_id_t page_id, page_id_t parent_id, in
   SetParentPageId(parent_id);
   SetPageId(page_id);
   SetSize(0);
+  SetNextPageId(INVALID_PAGE_ID);
 }
 
 /**

@@ -47,38 +47,18 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
     return false;
   }
 
-  Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
-  if (cur_page == nullptr) {
-    throw Exception("out of memory");
-  }
-  // cur_page->RLatch();
-  BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
-
-  while (!bPlusTreePage->IsLeafPage()) {
-    InternalPage *internalPage = reinterpret_cast<InternalPage *>(bPlusTreePage);
-    page_id_t next_page_id = internalPage->Lookup(key, comparator_);
-
-    Page *next_page = buffer_pool_manager_->FetchPage(next_page_id);
-    if (next_page == nullptr) {
-      throw Exception("out of memory");
-    }
-    // next_page->RLatch();
-    // cur_page->RUnlatch();
-    buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
-    cur_page = next_page;
-
-    bPlusTreePage = reinterpret_cast<BPlusTreePage *>(next_page->GetData());
-  }
+  Page *page = FindLeafPage(key, false);
 
   ValueType v;
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(bPlusTreePage);
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page);
   bool res = false;
+
   if (leafPage->Lookup(key, &v, comparator_)) {
     res = true;
     result->push_back(v);
   }
   // cur_page->RUnlatch();
-  buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
+  buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
   return res;
 }
 
@@ -121,7 +101,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
 
   root_page_id_ = new_page_id;
   UpdateRootPageId();
-  
+
   buffer_pool_manager_->UnpinPage(new_page_id, true);
 }
 
@@ -135,30 +115,9 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
-  Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
-  if (cur_page == nullptr) {
-    throw Exception("out of memory");
-  }
-  // cur_page->RLatch();
-  BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
+  Page *page = FindLeafPage(key, false);
 
-  while (!bPlusTreePage->IsLeafPage()) {
-    InternalPage *internalPage = reinterpret_cast<InternalPage *>(bPlusTreePage);
-    page_id_t next_page_id = internalPage->Lookup(key, comparator_);
-
-    Page *next_page = buffer_pool_manager_->FetchPage(next_page_id);
-    if (next_page == nullptr) {
-      throw Exception("out of memory");
-    }
-    // next_page->RLatch();
-    // cur_page->RUnlatch();
-    buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
-    cur_page = next_page;
-
-    bPlusTreePage = reinterpret_cast<BPlusTreePage *>(next_page->GetData());
-  }
-
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(bPlusTreePage);
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page->GetData());
   bool res = true;
 
   if (leafPage->Lookup(key, nullptr, comparator_)) {
@@ -169,13 +128,14 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     if (leafPage->GetSize() == leaf_max_size_) {
       LeafPage *new_node = Split<LeafPage>(leafPage);
       InsertIntoParent(leafPage, new_node->KeyAt(0), new_node, transaction);
+      new_node->SetNextPageId(leafPage->GetNextPageId());
       leafPage->SetNextPageId(new_node->GetPageId());
       buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
     }
   }
 
   // cur_page->RUnlatch();
-  buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), res);
+  buffer_pool_manager_->UnpinPage(page->GetPageId(), res);
   return res;
 }
 
@@ -362,7 +322,35 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(); }
  */
 INDEX_TEMPLATE_ARGUMENTS
 Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
-  throw Exception(ExceptionType::NOT_IMPLEMENTED, "Implement this for test");
+  Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
+  if (cur_page == nullptr) {
+    throw Exception("out of memory");
+  }
+  // cur_page->RLatch();
+  BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
+
+  while (!bPlusTreePage->IsLeafPage()) {
+    InternalPage *internalPage = reinterpret_cast<InternalPage *>(bPlusTreePage);
+    page_id_t next_page_id;
+    if (leftMost) {
+      next_page_id = internalPage->ValueAt(0);
+    } else {
+      next_page_id = internalPage->Lookup(key, comparator_);
+    }
+
+    Page *next_page = buffer_pool_manager_->FetchPage(next_page_id);
+    if (next_page == nullptr) {
+      throw Exception("out of memory");
+    }
+    // next_page->RLatch();
+    // cur_page->RUnlatch();
+    buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
+    cur_page = next_page;
+
+    bPlusTreePage = reinterpret_cast<BPlusTreePage *>(next_page->GetData());
+  }
+
+  return cur_page;
 }
 
 /*

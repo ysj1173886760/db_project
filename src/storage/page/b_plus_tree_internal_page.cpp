@@ -76,21 +76,17 @@ ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::ValueAt(int index) const { return arra
  */
 INDEX_TEMPLATE_ARGUMENTS
 ValueType B_PLUS_TREE_INTERNAL_PAGE_TYPE::Lookup(const KeyType &key, const KeyComparator &comparator) const {
-  if (comparator(key, KeyAt(1)) < 0) {
-    return ValueAt(0);
-  }
-
   int lb = 0;
-  int ub = GetSize() - 1;
+  int ub = GetSize();
   while (ub - lb > 1) {
     int mid = (ub + lb) / 2;
-    if (comparator(KeyAt(mid), key) >= 0) {
-      ub = mid;
-    } else {
+    if (comparator(key, KeyAt(mid)) >= 0) {
       lb = mid;
+    } else {
+      ub = mid;
     }
   }
-  return ValueAt(ub);
+  return ValueAt(lb);
 }
 
 /*****************************************************************************
