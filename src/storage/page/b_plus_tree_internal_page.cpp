@@ -240,7 +240,8 @@ void B_PLUS_TREE_INTERNAL_PAGE_TYPE::CopyLastFrom(const MappingType &pair, Buffe
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_INTERNAL_PAGE_TYPE::MoveLastToFrontOf(BPlusTreeInternalPage *recipient, const KeyType &middle_key,
                                                        BufferPoolManager *buffer_pool_manager) {
-  recipient->CopyFirstFrom(std::make_pair(middle_key, array[GetSize() - 1].second), buffer_pool_manager);
+  recipient->SetKeyAt(0, middle_key);
+  recipient->CopyFirstFrom(array[GetSize() - 1], buffer_pool_manager);
   Remove(GetSize() - 1);
 }
 
