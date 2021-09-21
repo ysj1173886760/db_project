@@ -14,6 +14,7 @@
 #include "common/exception.h"
 #include "common/rid.h"
 #include "storage/page/b_plus_tree_leaf_page.h"
+#include "common/logger.h"
 
 namespace bustub {
 
@@ -212,6 +213,7 @@ int B_PLUS_TREE_LEAF_PAGE_TYPE::RemoveAndDeleteRecord(const KeyType &key, const 
  */
 INDEX_TEMPLATE_ARGUMENTS
 void B_PLUS_TREE_LEAF_PAGE_TYPE::MoveAllTo(BPlusTreeLeafPage *recipient) {
+  // currently, only used in recipient <- this. which means the recipient is always positioning at left.
   recipient->CopyNFrom(array, GetSize());
   recipient->SetNextPageId(GetNextPageId());
   SetSize(0);

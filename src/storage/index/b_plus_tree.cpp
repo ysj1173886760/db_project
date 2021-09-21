@@ -125,7 +125,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   } else {
     // first we need to split
     leafPage->Insert(key, value, comparator_);
-    if (leafPage->GetSize() == leaf_max_size_) {
+    if (leafPage->GetSize() >= leaf_max_size_) {
       LeafPage *new_node = Split<LeafPage>(leafPage);
       InsertIntoParent(leafPage, new_node->KeyAt(0), new_node, transaction);
       new_node->SetNextPageId(leafPage->GetNextPageId());
@@ -207,7 +207,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     InternalPage *internalPage = reinterpret_cast<InternalPage *>(parent_page->GetData());
 
     internalPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
-    if (internalPage->GetSize() == internal_max_size_) {
+    if (internalPage->GetSize() > internal_max_size_) {
       InternalPage *new_node = Split<InternalPage>(internalPage);
       InsertIntoParent(internalPage, new_node->KeyAt(0), new_node, transaction);
       buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
@@ -236,7 +236,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
   leafPage->RemoveAndDeleteRecord(key, comparator_);
   
   if (leafPage->GetSize() < leafPage->GetMinSize()) {
-    CoalesceOrRedistribute(leafPage, transaction);
+    CoalesceOrRedistribute<LeafPage>(leafPage, transaction);
   }
 }
 
@@ -275,7 +275,10 @@ bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   N *siblingPage = reinterpret_cast<N *>(sibP);
 
   // coalesce
-  if (siblingPage->GetSize() + node->GetSize() < node->GetMaxSize()) {
+  // according to our split algorithm, for internalNode, we can have the node size equals to MaxSize.
+  // but leafNode, we only can have maximum to MaxSize - 1
+  if ((node->IsLeafPage() && siblingPage->GetSize() + node->GetSize() < node->GetMaxSize()) ||
+      (!node->IsLeafPage() && siblingPage->GetSize() + node->GetSize() <= node->GetMaxSize())) {
     if (index == 0) {
       std::swap(siblingPage, node);
       std::swap(index, sibling);
