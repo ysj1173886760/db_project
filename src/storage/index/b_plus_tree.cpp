@@ -226,7 +226,19 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
  * necessary.
  */
 INDEX_TEMPLATE_ARGUMENTS
-void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
+void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
+  if (IsEmpty()) {
+    return;
+  }
+  Page *page = FindLeafPage(key, false);
+
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page);
+  leafPage->RemoveAndDeleteRecord(key, comparator_);
+  
+  if (leafPage->GetSize() < leafPage->GetMinSize()) {
+    CoalesceOrRedistribute(leafPage, transaction);
+  }
+}
 
 /*
  * User needs to first find the sibling of input page. If sibling's size + input
@@ -238,7 +250,45 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {}
 INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
+  if (node->IsRootPage()) {
+
+  }
+
+  Page *p = buffer_pool_manager_->FetchPage(node->GetParentPageId());
+  if (p == nullptr) {
+    throw Exception("out of memory");
+  }
+  InternalPage *internalPage = reinterpret_cast<InternalPage *>(p);
+
+  int index = internalPage->ValueIndex(node->GetPageId());
+  int sibling;
+  if (index == 0) {
+    sibling = 1;
+  } else {
+    sibling = index - 1;
+  }
+
+  Page *sibP = buffer_pool_manager_->FetchPage(internalPage->ValueAt(sibling));
+  if (sibP == nullptr) {
+    throw Exception("out of memory");
+  }
+  N *siblingPage = reinterpret_cast<N *>(sibP);
+
+  // coalesce
+  if (siblingPage->GetSize() + node->GetSize() < node->GetMaxSize()) {
+    if (index == 0) {
+      std::swap(siblingPage, node);
+      std::swap(index, sibling);
+    }
+    Coalesce(&siblingPage, &node, &internalPage, index, transaction);
+    buffer_pool_manager_->UnpinPage(siblingPage->GetPageId(), true);
+    buffer_pool_manager_->UnpinPage(node->GetPageId(), true);
+    return true;
+  }
+
+  // Redistribute
   return false;
+
 }
 
 /*
@@ -258,6 +308,16 @@ template <typename N>
 bool BPLUSTREE_TYPE::Coalesce(N **neighbor_node, N **node,
                               BPlusTreeInternalPage<KeyType, page_id_t, KeyComparator> **parent, int index,
                               Transaction *transaction) {
+  if ((*node)->IsLeafPage()) {
+    reinterpret_cast<LeafPage *>(*node)->MoveAllTo(reinterpret_cast<LeafPage *>(*neighbor_node));
+  } else {
+    reinterpret_cast<InternalPage *>(*node)->MoveAllTo(reinterpret_cast<InternalPage *>(*neighbor_node), (*parent)->KeyAt(index), buffer_pool_manager_);
+  }
+  (*parent)->Remove(index);
+
+  if ((*parent)->GetSize() < (*parent)->GetMinSize()) {
+    return CoalesceOrRedistribute<InternalPage>(*parent, transaction);
+  }
   return false;
 }
 
