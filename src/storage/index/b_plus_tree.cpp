@@ -411,7 +411,12 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
+  Page *page = FindLeafPage(KeyType{}, true);
+  page_id_t page_id = page->GetPageId();
+  buffer_pool_manager_->UnpinPage(page_id, false);
+  return INDEXITERATOR_TYPE(page_id, buffer_pool_manager_, 0);
+}
 
 /*
  * Input parameter is low key, find the leaf page that contains the input key
@@ -419,7 +424,14 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() { return INDEXITERATOR_TYPE(); }
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
+  Page *page = FindLeafPage(key, false);
+  page_id_t page_id = page->GetPageId();
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page);
+  int index = leafPage->KeyIndex(key, comparator_);
+  buffer_pool_manager_->UnpinPage(page_id, false);
+  return INDEXITERATOR_TYPE(page_id, buffer_pool_manager_, index);
+}
 
 /*
  * Input parameter is void, construct an index iterator representing the end
@@ -427,7 +439,7 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) { return INDEXITERA
  * @return : index iterator
  */
 INDEX_TEMPLATE_ARGUMENTS
-INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(); }
+INDEXITERATOR_TYPE BPLUSTREE_TYPE::end() { return INDEXITERATOR_TYPE(INVALID_PAGE_ID, nullptr, -1); }
 
 /*****************************************************************************
  * UTILITIES AND DEBUG
