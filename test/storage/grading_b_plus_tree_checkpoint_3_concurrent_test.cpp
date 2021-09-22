@@ -459,9 +459,9 @@ void MixTest2Call() {
  */
 TEST(BPlusTreeConcurrentTest, InsertTest1) {
   TEST_TIMEOUT_BEGIN
-        InsertTest1Call();
-        remove("test.db");
-        remove("test.log");
+  InsertTest1Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 60)
 }
 
@@ -472,9 +472,9 @@ TEST(BPlusTreeConcurrentTest, InsertTest1) {
  */
 TEST(BPlusTreeConcurrentTest, InsertTest2) {
   TEST_TIMEOUT_BEGIN
-        InsertTest2Call();
-        remove("test.db");
-        remove("test.log");
+  InsertTest2Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 60)
 }
 
@@ -484,9 +484,9 @@ TEST(BPlusTreeConcurrentTest, InsertTest2) {
  */
 TEST(BPlusTreeConcurrentTest, DeleteTest1) {
   TEST_TIMEOUT_BEGIN
-        DeleteTest1Call();
-        remove("test.db");
-        remove("test.log");
+  DeleteTest1Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 60)
 }
 
@@ -497,9 +497,9 @@ TEST(BPlusTreeConcurrentTest, DeleteTest1) {
  */
 TEST(BPlusTreeConcurrentTest, DeleteTest2) {
   TEST_TIMEOUT_BEGIN
-        DeleteTest2Call();
-        remove("test.db");
-        remove("test.log");
+  DeleteTest2Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 60)
 }
 
@@ -512,9 +512,9 @@ TEST(BPlusTreeConcurrentTest, DeleteTest2) {
  */
 TEST(BPlusTreeConcurrentTest, MixTest1) {
   TEST_TIMEOUT_BEGIN
-        MixTest1Call();
-        remove("test.db");
-        remove("test.log");
+  MixTest1Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 300)
 }
 
@@ -528,9 +528,9 @@ TEST(BPlusTreeConcurrentTest, MixTest1) {
  */
 TEST(BPlusTreeConcurrentTest, MixTest2) {
   TEST_TIMEOUT_BEGIN
-        MixTest2Call();
-        remove("test.db");
-        remove("test.log");
+  MixTest2Call();
+  remove("test.db");
+  remove("test.log");
   TEST_TIMEOUT_FAIL_END(1000 * 300)
 }
 
