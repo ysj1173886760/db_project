@@ -5,3 +5,9 @@ bufferPoolManager的flush和flushAll都是直接写入到磁盘中，不要判�
 deletePage以后记得要把他从replacer中Pin出来
 
 B+树中的二分，对于内部节点来说，我们应该找到第一个小于key的点，这样才能保证进入的节点中的值是包含key的。而对于叶节点来说，我们应该找到第一个大于等于key的点，这样我们才能将key插入到这个点上
+
+不能用简单的判断root的方法来判断page是不是root，从而释放root latch。 我们需要一个变量来记录当前线程有没有释放root latch。 比如简单的用root_id来判断，这时候如果其他的线程修改了root_id，就会导致多次释放root latch，从而导致问题
+
+要先释放page的RWLatch，再unpin这个page，否则释放的可能就是假的page
+
+andy说删除的时候要先把page都记录下来，然后最后再删
