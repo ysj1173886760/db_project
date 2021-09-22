@@ -43,22 +43,29 @@ bool BPLUSTREE_TYPE::IsEmpty() const { return root_page_id_ == INVALID_PAGE_ID; 
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result, Transaction *transaction) {
+  root_latch_.lock();
   if (IsEmpty()) {
+    root_latch_.unlock();
     return false;
   }
 
-  Page *page = FindLeafPage(key, false);
+  Page *cur_page = FindLeafPage(key, false);
 
   ValueType v;
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page);
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(cur_page);
   bool res = false;
 
   if (leafPage->Lookup(key, &v, comparator_)) {
     res = true;
     result->push_back(v);
   }
-  // cur_page->RUnlatch();
-  buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+
+  // release current page. don't forget to check the root latch
+  if (leafPage->IsRootPage()) {
+    root_latch_.unlock();
+  }
+  cur_page->RUnlatch();
+  buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
   return res;
 }
 
@@ -454,7 +461,7 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
   if (cur_page == nullptr) {
     throw Exception("out of memory");
   }
-  // cur_page->RLatch();
+  cur_page->RLatch();
   BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
 
   while (!bPlusTreePage->IsLeafPage()) {
@@ -470,11 +477,17 @@ Page *BPLUSTREE_TYPE::FindLeafPage(const KeyType &key, bool leftMost) {
     if (next_page == nullptr) {
       throw Exception("out of memory");
     }
-    // next_page->RLatch();
-    // cur_page->RUnlatch();
-    buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
-    cur_page = next_page;
+    next_page->RLatch();
 
+    // release previous page
+    if (bPlusTreePage->IsRootPage()) {
+      root_latch_.unlock();
+    }
+    cur_page->RUnlatch();
+    buffer_pool_manager_->UnpinPage(cur_page->GetPageId(), false);
+
+    // step to next page
+    cur_page = next_page;
     bPlusTreePage = reinterpret_cast<BPlusTreePage *>(next_page->GetData());
   }
 
