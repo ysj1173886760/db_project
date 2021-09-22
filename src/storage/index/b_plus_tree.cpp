@@ -571,6 +571,11 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
  * index iterator
  * @return : index iterator
  */
+
+// here, for the concurrent iterator, we need some api like tryLock to test whether the RWLatch is locked.
+// because in iterator, we can't wait to acquire a latch. if we are not able to acquire the latch immediately, then we shall abort directly
+// to prevent potential deadlock.
+// for the current framework, we can't test the latch on the page. thus, concurrent iterator can not be implemented.
 INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
   root_latch_.lock();
