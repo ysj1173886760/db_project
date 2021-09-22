@@ -99,7 +99,6 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   page_id_t new_page_id;
   Page *new_page = buffer_pool_manager_->NewPage(&new_page_id);
-  new_page->WLatch();
 
   if (new_page == nullptr) {
     throw Exception("out of memory");
@@ -112,7 +111,6 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   root_page_id_ = new_page_id;
   UpdateRootPageId();
 
-  new_page->WUnlatch();
   buffer_pool_manager_->UnpinPage(new_page_id, true);
 }
 
@@ -126,6 +124,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
+  bool rootLocked = true;
   Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
   if (cur_page == nullptr) {
     throw Exception("out of memory");
@@ -158,12 +157,13 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
         // for the sake of simplicity, and efficiency (and also lazy). I use root_page_id_ to check it directly.
         if (page->GetPageId() == root_page_id_) {
           root_latch_.unlock();
+          rootLocked = false;
         }
         page->WUnlatch();
         buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
       }
     }
-    transaction->AddIntoPageSet(cur_page);
+    transaction->AddIntoPageSet(next_page);
 
     // step to next page
     cur_page = next_page;
@@ -187,15 +187,19 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     }
   }
 
+  // here we don't need to check whether the root is locked or not.
+  // if we are modifying root, then we shall release lock here.
+  // if we are not modifying root, then root latch shall be released above
   auto pageSet = transaction->GetPageSet();
   while (!pageSet->empty()) {
     Page *page = pageSet->front();
     pageSet->pop_front();
-    if (page->GetPageId() == root_page_id_) {
-      root_latch_.unlock();
-    }
     page->WUnlatch();
     buffer_pool_manager_->UnpinPage(page->GetPageId(), res);
+  }
+  
+  if (rootLocked) {
+    root_latch_.unlock();
   }
   return res;
 }
@@ -326,7 +330,7 @@ void BPLUSTREE_TYPE::Remove(const KeyType &key, Transaction *transaction) {
         buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
       }
     }
-    transaction->AddIntoPageSet(cur_page);
+    transaction->AddIntoPageSet(next_page);
 
     // step to next page
     cur_page = next_page;
@@ -368,7 +372,11 @@ INDEX_TEMPLATE_ARGUMENTS
 template <typename N>
 bool BPLUSTREE_TYPE::CoalesceOrRedistribute(N *node, Transaction *transaction) {
   if (node->IsRootPage()) {
-    return AdjustRoot(node);
+    if (AdjustRoot(node)) {
+      transaction->AddIntoDeletedPageSet(node->GetPageId());
+      return true;
+    }
+    return false;
   }
 
   Page *p = buffer_pool_manager_->FetchPage(node->GetParentPageId());
@@ -503,7 +511,6 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
 
     root_page_id_ = new_root;
     UpdateRootPageId();
-    buffer_pool_manager_->DeletePage(old_root_node->GetPageId());
 
     return true;
   }
@@ -512,7 +519,6 @@ bool BPLUSTREE_TYPE::AdjustRoot(BPlusTreePage *old_root_node) {
   if (old_root_node->GetSize() == 0 && old_root_node->IsLeafPage()) {
     root_page_id_ = INVALID_PAGE_ID;
     UpdateRootPageId();
-    buffer_pool_manager_->DeletePage(old_root_node->GetPageId());
     return true;
   }
 
@@ -531,6 +537,10 @@ INDEX_TEMPLATE_ARGUMENTS
 INDEXITERATOR_TYPE BPLUSTREE_TYPE::begin() {
   Page *page = FindLeafPage(KeyType{}, true);
   page_id_t page_id = page->GetPageId();
+  if (page_id == root_page_id_) {
+    root_latch_.unlock();
+  }
+  page->RUnlatch();
   buffer_pool_manager_->UnpinPage(page_id, false);
   return INDEXITERATOR_TYPE(page_id, buffer_pool_manager_, 0);
 }
@@ -546,6 +556,10 @@ INDEXITERATOR_TYPE BPLUSTREE_TYPE::Begin(const KeyType &key) {
   page_id_t page_id = page->GetPageId();
   LeafPage *leafPage = reinterpret_cast<LeafPage *>(page->GetData());
   int index = leafPage->KeyIndex(key, comparator_);
+  if (page_id == root_page_id_) {
+    root_latch_.unlock();
+  }
+  page->RUnlatch();
   buffer_pool_manager_->UnpinPage(page_id, false);
   return INDEXITERATOR_TYPE(page_id, buffer_pool_manager_, index);
 }
