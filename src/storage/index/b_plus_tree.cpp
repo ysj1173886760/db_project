@@ -81,8 +81,10 @@ bool BPLUSTREE_TYPE::GetValue(const KeyType &key, std::vector<ValueType> *result
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::Insert(const KeyType &key, const ValueType &value, Transaction *transaction) {
+  root_latch_.lock();
   if (IsEmpty()) {
     StartNewTree(key, value);
+    root_latch_.unlock();
     return true;
   }
   return InsertIntoLeaf(key, value, transaction);
@@ -97,6 +99,7 @@ INDEX_TEMPLATE_ARGUMENTS
 void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   page_id_t new_page_id;
   Page *new_page = buffer_pool_manager_->NewPage(&new_page_id);
+  new_page->WLatch();
 
   if (new_page == nullptr) {
     throw Exception("out of memory");
@@ -109,6 +112,7 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
   root_page_id_ = new_page_id;
   UpdateRootPageId();
 
+  new_page->WUnlatch();
   buffer_pool_manager_->UnpinPage(new_page_id, true);
 }
 
@@ -122,9 +126,49 @@ void BPLUSTREE_TYPE::StartNewTree(const KeyType &key, const ValueType &value) {
  */
 INDEX_TEMPLATE_ARGUMENTS
 bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, Transaction *transaction) {
-  Page *page = FindLeafPage(key, false);
+  Page *cur_page = buffer_pool_manager_->FetchPage(root_page_id_);
+  if (cur_page == nullptr) {
+    throw Exception("out of memory");
+  }
+  cur_page->WLatch();
+  transaction->AddIntoPageSet(cur_page);
+  BPlusTreePage *bPlusTreePage = reinterpret_cast<BPlusTreePage *>(cur_page->GetData());
 
-  LeafPage *leafPage = reinterpret_cast<LeafPage *>(page->GetData());
+  while (!bPlusTreePage->IsLeafPage()) {
+    InternalPage *internalPage = reinterpret_cast<InternalPage *>(bPlusTreePage);
+    Page *next_page = buffer_pool_manager_->FetchPage(internalPage->Lookup(key, comparator_));
+    if (next_page == nullptr) {
+      throw Exception("out of memory");
+    }
+    next_page->WLatch();
+
+    InternalPage *next_node = reinterpret_cast<InternalPage *>(next_page);
+    // this is internal node. internal node may only split when size == maxSize
+    if (next_node->GetSize() < next_node->GetMaxSize()) {
+      // safe, release all of the previous pages
+      // release pages as top-down order
+      auto pageSet = transaction->GetPageSet();
+      while (!pageSet->empty()) {
+        Page *page = pageSet->front();
+        pageSet->pop_front();
+
+        // actually, we shall use IsRoot to check whether the page is root and release the root latch.
+        // for the sake of simplicity, and efficiency (and also lazy). I use root_page_id_ to check it directly.
+        if (page->GetPageId() == root_page_id_) {
+          root_latch_.unlock();
+        }
+        page->WUnlatch();
+        buffer_pool_manager_->UnpinPage(page->GetPageId(), false);
+      }
+    }
+    transaction->AddIntoPageSet(cur_page);
+
+    // step to next page
+    cur_page = next_page;
+    bPlusTreePage = reinterpret_cast<BPlusTreePage *>(next_page->GetData());
+  }
+
+  LeafPage *leafPage = reinterpret_cast<LeafPage *>(cur_page->GetData());
   bool res = true;
 
   if (leafPage->Lookup(key, nullptr, comparator_)) {
@@ -132,7 +176,7 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
   } else {
     // first we need to split
     leafPage->Insert(key, value, comparator_);
-    if (leafPage->GetSize() >= leaf_max_size_) {
+    if (leafPage->GetSize() >= leafPage->GetMaxSize()) {
       LeafPage *new_node = Split<LeafPage>(leafPage);
       InsertIntoParent(leafPage, new_node->KeyAt(0), new_node, transaction);
       new_node->SetNextPageId(leafPage->GetNextPageId());
@@ -141,8 +185,16 @@ bool BPLUSTREE_TYPE::InsertIntoLeaf(const KeyType &key, const ValueType &value, 
     }
   }
 
-  // cur_page->RUnlatch();
-  buffer_pool_manager_->UnpinPage(page->GetPageId(), res);
+  auto pageSet = transaction->GetPageSet();
+  while (!pageSet->empty()) {
+    Page *page = pageSet->front();
+    pageSet->pop_front();
+    if (page->GetPageId() == root_page_id_) {
+      root_latch_.unlock();
+    }
+    page->WUnlatch();
+    buffer_pool_manager_->UnpinPage(page->GetPageId(), res);
+  }
   return res;
 }
 
@@ -214,7 +266,7 @@ void BPLUSTREE_TYPE::InsertIntoParent(BPlusTreePage *old_node, const KeyType &ke
     InternalPage *internalPage = reinterpret_cast<InternalPage *>(parent_page->GetData());
 
     internalPage->InsertNodeAfter(old_node->GetPageId(), key, new_node->GetPageId());
-    if (internalPage->GetSize() > internal_max_size_) {
+    if (internalPage->GetSize() > internalPage->GetMaxSize()) {
       InternalPage *new_node = Split<InternalPage>(internalPage);
       InsertIntoParent(internalPage, new_node->KeyAt(0), new_node, transaction);
       buffer_pool_manager_->UnpinPage(new_node->GetPageId(), true);
