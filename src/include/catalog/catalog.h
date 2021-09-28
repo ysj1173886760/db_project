@@ -123,7 +123,7 @@ class Catalog {
 
     // populate data to index
     TableMetadata* table = GetTable(table_name);
-    for (auto it = table->table_->Begin(txn); it != table->table_->End(); it++) {
+    for (auto it = table->table_->Begin(txn); it != table->table_->End(); ++it) {
       Tuple key = it->KeyFromTuple(schema, key_schema, key_attrs);
       index->InsertEntry(key, it->GetRid(), txn);
     }
