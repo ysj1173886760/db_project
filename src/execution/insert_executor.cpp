@@ -42,11 +42,11 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
                     index->index_->InsertEntry(key, *rid, exec_ctx_->GetTransaction());
                 }
             } else {
-                // maybe throw a exception?
-                return false;
+                throw Exception("failed to insert");
             }
         }
-        return true;
+        // false means no more tuple need to be inserted
+        return false;
     } else {
         while (child_executor_->Next(tuple, rid)) {
             if (metatable_->table_->InsertTuple(*tuple, rid, exec_ctx_->GetTransaction())) {
@@ -55,11 +55,11 @@ bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
                     index->index_->InsertEntry(key, *rid, exec_ctx_->GetTransaction());
                 }
             } else {
-                // failed to insert;
-                return false;
+                throw Exception("failed to insert");
             }
         }
-        return true;
+        // same as above
+        return false;
     }
 }
 
