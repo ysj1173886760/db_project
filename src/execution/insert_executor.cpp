@@ -16,11 +16,51 @@
 namespace bustub {
 
 InsertExecutor::InsertExecutor(ExecutorContext *exec_ctx, const InsertPlanNode *plan,
-                               std::unique_ptr<AbstractExecutor> &&child_executor)
-    : AbstractExecutor(exec_ctx) {}
+                               std::unique_ptr<AbstractExecutor> &&child_executor):
+    AbstractExecutor(exec_ctx),
+    plan_(plan),
+    metatable_(exec_ctx->GetCatalog()->GetTable(plan->TableOid())),
+    index_list_(exec_ctx->GetCatalog()->GetTableIndexes(metatable_->name_)),
+    child_executor_(std::move(child_executor)) {}
 
-void InsertExecutor::Init() {}
 
-bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) { return false; }
+void InsertExecutor::Init() {
+    if (!plan_->IsRawInsert()) {
+        child_executor_->Init();
+    }
+}
+
+bool InsertExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
+    // first check whether is the raw insert
+    if (plan_->IsRawInsert()) {
+        std::vector<std::vector<Value>> vals = plan_->RawValues();
+        for (const auto &val : vals) {
+            Tuple tp(val, &metatable_->schema_);
+            if (metatable_->table_->InsertTuple(tp, rid, exec_ctx_->GetTransaction())) {
+                for (const auto &index : index_list_) {
+                    Tuple key(tp.KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
+                    index->index_->InsertEntry(key, *rid, exec_ctx_->GetTransaction());
+                }
+            } else {
+                // maybe throw a exception?
+                return false;
+            }
+        }
+        return true;
+    } else {
+        while (child_executor_->Next(tuple, rid)) {
+            if (metatable_->table_->InsertTuple(*tuple, rid, exec_ctx_->GetTransaction())) {
+                for (const auto &index : index_list_) {
+                    Tuple key(tuple->KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
+                    index->index_->InsertEntry(key, *rid, exec_ctx_->GetTransaction());
+                }
+            } else {
+                // failed to insert;
+                return false;
+            }
+        }
+        return true;
+    }
+}
 
 }  // namespace bustub

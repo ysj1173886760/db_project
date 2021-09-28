@@ -30,6 +30,7 @@ bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
     while (begin_ != end_) {
         *rid = (*begin_).second;
         bool res = metatable_->table_->GetTuple(*rid, tuple, exec_ctx_->GetTransaction());
+        ++begin_;
         if (!res) {
             throw std::out_of_range("Failed to get tuple");
         }
