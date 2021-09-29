@@ -79,7 +79,8 @@ class Catalog {
     BUSTUB_ASSERT(names_.count(table_name) == 0, "Table names should be unique!");
     table_oid_t new_oid = next_table_oid_++;
     names_[table_name] = new_oid;
-    auto new_table = std::make_unique<TableMetadata>(schema, table_name, std::make_unique<TableHeap>(bpm_, lock_manager_, log_manager_, txn), new_oid);
+    auto new_table = std::make_unique<TableMetadata>(
+        schema, table_name, std::make_unique<TableHeap>(bpm_, lock_manager_, log_manager_, txn), new_oid);
     tables_[new_oid] = std::move(new_table);
     return tables_[new_oid].get();
   }
@@ -122,13 +123,14 @@ class Catalog {
     auto index = std::make_unique<BPlusTreeIndex<KeyType, ValueType, KeyComparator>>(index_metadata, bpm_);
 
     // populate data to index
-    TableMetadata* table = GetTable(table_name);
+    TableMetadata *table = GetTable(table_name);
     for (auto it = table->table_->Begin(txn); it != table->table_->End(); ++it) {
       Tuple key = it->KeyFromTuple(schema, key_schema, key_attrs);
       index->InsertEntry(key, it->GetRid(), txn);
     }
 
-    auto new_index = std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), new_oid, table_name, keysize);
+    auto new_index =
+        std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), new_oid, table_name, keysize);
     indexes_[new_oid] = std::move(new_index);
     index_names_[table_name][index_name] = new_oid;
     return indexes_[new_oid].get();
@@ -160,9 +162,9 @@ class Catalog {
       return res;
     }
 
-    for (const auto &index: index_names_[table_name]) {
+    for (const auto &index : index_names_[table_name]) {
       auto ptr = GetIndex(index.second);
-      if (ptr) {
+      if (ptr != nullptr) {
         res.push_back(ptr);
       }
     }

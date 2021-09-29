@@ -18,30 +18,28 @@ namespace bustub {
 DeleteExecutor::DeleteExecutor(ExecutorContext *exec_ctx, const DeletePlanNode *plan,
                                std::unique_ptr<AbstractExecutor> &&child_executor)
     : AbstractExecutor(exec_ctx),
-    plan_(plan),
-    child_executor_(std::move(child_executor)),
-    metatable_(exec_ctx->GetCatalog()->GetTable(plan->TableOid())),
-    index_list_(exec_ctx->GetCatalog()->GetTableIndexes(metatable_->name_)) {}
+      plan_(plan),
+      child_executor_(std::move(child_executor)),
+      metatable_(exec_ctx->GetCatalog()->GetTable(plan->TableOid())),
+      index_list_(exec_ctx->GetCatalog()->GetTableIndexes(metatable_->name_)) {}
 
-void DeleteExecutor::Init() {
-    child_executor_->Init();
-}
+void DeleteExecutor::Init() { child_executor_->Init(); }
 
 bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
-    if (child_executor_->Next(tuple, rid)) {
-        if (metatable_->table_->MarkDelete(*rid, exec_ctx_->GetTransaction())) {
-            for (const auto &index : index_list_) {
-                Tuple key(tuple->KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
-                index->index_->DeleteEntry(key, *rid, exec_ctx_->GetTransaction());
-            }
-        } else {
-            throw Exception("failed to delete");
-        }
-
-        return true;
+  if (child_executor_->Next(tuple, rid)) {
+    if (metatable_->table_->MarkDelete(*rid, exec_ctx_->GetTransaction())) {
+      for (const auto &index : index_list_) {
+        Tuple key(tuple->KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
+        index->index_->DeleteEntry(key, *rid, exec_ctx_->GetTransaction());
+      }
+    } else {
+      throw Exception("failed to delete");
     }
 
-    return false;
+    return true;
+  }
+
+  return false;
 }
 
 }  // namespace bustub
