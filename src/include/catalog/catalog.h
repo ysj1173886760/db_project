@@ -128,7 +128,7 @@ class Catalog {
       index->InsertEntry(key, it->GetRid(), txn);
     }
 
-    auto new_index = std::make_unique<IndexInfo>(key_schema, index_name, index, new_oid, table_name, keysize);
+    auto new_index = std::make_unique<IndexInfo>(key_schema, index_name, std::move(index), new_oid, table_name, keysize);
     indexes_[new_oid] = std::move(new_index);
     index_names_[table_name][index_name] = new_oid;
     return indexes_[new_oid].get();

@@ -55,7 +55,7 @@ bool AggregationExecutor::Next(Tuple *tuple, RID *rid) {
             for (uint i = 0; i < result.size(); i++) {
                 result[i] = cols[i].GetExpr()->EvaluateAggregate(key, val);
             }
-            Tuple tp(result, outSchema);
+            *tuple = Tuple(result, outSchema);
             return true;
         }
     }
