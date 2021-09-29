@@ -44,7 +44,7 @@ bool NestIndexJoinExecutor::Next(Tuple *tuple, RID *rid) {
         }
         *tuple = Tuple(vals, output_schema);
         return true;
-      } 
+      }
 
       throw Exception("failed to get tuple");
     }

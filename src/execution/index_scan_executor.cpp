@@ -43,6 +43,7 @@ bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
         val[i] = cols[i].GetExpr()->Evaluate(tuple, &metatable_->schema_);
       }
       *tuple = Tuple(val, output_schema);
+      return true;
     }
   }
   return false;
