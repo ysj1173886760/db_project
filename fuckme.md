@@ -1,5 +1,7 @@
 记录一下踩过的坑
 
+project1 & 2
+
 bufferPoolManager的flush和flushAll都是直接写入到磁盘中，不要判断是否dirty
 
 deletePage以后记得要把他从replacer中Pin出来
@@ -11,3 +13,13 @@ B+树中的二分，对于内部节点来说，我们应该找到第一个小于
 要先释放page的RWLatch，再unpin这个page，否则释放的可能就是假的page
 
 andy说删除的时候要先把page都记录下来，然后最后再删
+
+project3:
+
+获取输出用的元组要从output_schema中先获取columns，然后对于每一个column调用GetExpr得到用于创建元组的表达式，然后再用对应的evaluate，比如join就调用evaluateJoin，聚合就调用evaluateAggregation
+
+对于nested index join中获取外表对应的键，用keyFromTuple，参数用index的key schema
+
+这里的aggregation写的很妙，对于每一个元组，都使用makeKey和makeVal得到对应的group和需要aggregation的值。然后插入的时候在对应的group中计算
+
+index scan有点迷，感觉这个只是正常的顺序扫描一遍，而且还有大量的random io，感觉还不如顺序读进来然后sort。但是这样就不能流水线了。我实现的时候就是针对andy说的类型实现的，并没有找到比较通用的方法。
