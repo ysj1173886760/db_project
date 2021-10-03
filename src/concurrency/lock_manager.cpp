@@ -10,11 +10,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "concurrency/lock_manager.h"
-#include "concurrency/transaction_manager.h"
-
 #include <utility>
 #include <vector>
+
+#include "concurrency/lock_manager.h"
+#include "concurrency/transaction_manager.h"
 
 namespace bustub {
 
@@ -39,9 +39,7 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
 
   // first try to construct the lock queue
   if (lock_table_.count(rid) == 0) {
-    lock_table_.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(rid),
-                        std::forward_as_tuple());
+    lock_table_.emplace(std::piecewise_construct, std::forward_as_tuple(rid), std::forward_as_tuple());
   }
 
   // then find the corresponding lock queue and append the lock request
@@ -51,10 +49,8 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
 
   // if someone is owning the write lock, then we must wait
   if (lock_queue->writing_) {
-    lock_queue->cv_.wait(lck, [lock_queue, txn]() {
-                          return txn->GetState() == TransactionState::ABORTED ||
-                          lock_queue->writing_ == false;
-                        });
+    lock_queue->cv_.wait(
+        lck, [lock_queue, txn]() { return txn->GetState() == TransactionState::ABORTED || !lock_queue->writing_; });
   }
 
   // abort the transaction due to the dead lock
@@ -82,9 +78,7 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
   }
 
   if (lock_table_.count(rid) == 0) {
-    lock_table_.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(rid),
-                        std::forward_as_tuple());
+    lock_table_.emplace(std::piecewise_construct, std::forward_as_tuple(rid), std::forward_as_tuple());
   }
 
   // then find the corresponding lock queue and append the lock request
@@ -94,9 +88,8 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
 
   if (lock_queue->writing_ || lock_queue->shared_count_ > 0) {
     lock_queue->cv_.wait(lck, [lock_queue, txn]() {
-                          return txn->GetState() == TransactionState::ABORTED ||
-                          (lock_queue->writing_ == false && lock_queue->shared_count_ == 0);
-                        });
+      return txn->GetState() == TransactionState::ABORTED || (!lock_queue->writing_ && lock_queue->shared_count_ == 0);
+    });
   }
 
   if (txn->GetState() == TransactionState::ABORTED) {
@@ -121,11 +114,9 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
     throw TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
     return false;
   }
-  
+
   if (lock_table_.count(rid) == 0) {
-    lock_table_.emplace(std::piecewise_construct,
-                        std::forward_as_tuple(rid),
-                        std::forward_as_tuple());
+    lock_table_.emplace(std::piecewise_construct, std::forward_as_tuple(rid), std::forward_as_tuple());
   }
 
   LockRequestQueue *lock_queue = &lock_table_[rid];
@@ -154,9 +145,8 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
 
   if (lock_queue->writing_ || lock_queue->shared_count_ > 0) {
     lock_queue->cv_.wait(lck, [lock_queue, txn]() {
-                          return txn->GetState() == TransactionState::ABORTED ||
-                          (lock_queue->writing_ == false && lock_queue->shared_count_ == 0);
-                        });
+      return txn->GetState() == TransactionState::ABORTED || (!lock_queue->writing_ && lock_queue->shared_count_ == 0);
+    });
   }
 
   if (txn->GetState() == TransactionState::ABORTED) {
@@ -210,7 +200,7 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
       txn->SetState(TransactionState::SHRINKING);
     }
   }
-  
+
   lock_queue->request_queue_.erase(it);
 
   // really, i'm not sure whether i should call notify inside or outside the lock block.
@@ -222,9 +212,7 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   return true;
 }
 
-void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) {
-  waits_for_[t1].push_back(t2);
-}
+void LockManager::AddEdge(txn_id_t t1, txn_id_t t2) { waits_for_[t1].push_back(t2); }
 
 void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
   auto it = std::find(waits_for_[t1].begin(), waits_for_[t1].end(), t2);
@@ -233,7 +221,7 @@ void LockManager::RemoveEdge(txn_id_t t1, txn_id_t t2) {
   }
 }
 
-bool LockManager::dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &in_loop) {
+bool LockManager::dfs(txn_id_t cur, txn_id_t *cycle_point, txn_id_t *ans, bool *in_loop) {
   if (finished_.count(cur) != 0) {
     return false;
   }
@@ -242,16 +230,16 @@ bool LockManager::dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &
   sort(waits_for_[cur].begin(), waits_for_[cur].end());
   for (const auto &to : waits_for_[cur]) {
     if (stack_.count(to) != 0) {
-      cycle_point = to;
-      ans = cur;
-      in_loop = true;
+      *cycle_point = to;
+      *ans = cur;
+      *in_loop = true;
       return true;
     }
     if (dfs(to, cycle_point, ans, in_loop)) {
-      if (in_loop) {
-        ans = std::max(ans, cur);
-        if (cur == cycle_point) {
-          in_loop = false;
+      if (*in_loop) {
+        *ans = std::max(*ans, cur);
+        if (cur == *cycle_point) {
+          *in_loop = false;
         }
       }
       return true;
@@ -272,10 +260,9 @@ bool LockManager::HasCycle(txn_id_t *txn_id) {
     stack_.clear();
     txn_id_t cycle_point;
     bool in_loop = false;
-    if (dfs(cur, cycle_point, *txn_id, in_loop)) {
+    if (dfs(cur, &cycle_point, txn_id, &in_loop)) {
       return true;
     }
-
   }
   return false;
 }
@@ -284,7 +271,7 @@ std::vector<std::pair<txn_id_t, txn_id_t>> LockManager::GetEdgeList() {
   std::vector<std::pair<txn_id_t, txn_id_t>> res;
   for (const auto &[cur, edges] : waits_for_) {
     for (const auto &to : edges) {
-      res.push_back({cur, to});
+      res.emplace_back(cur, to);
     }
   }
   return res;

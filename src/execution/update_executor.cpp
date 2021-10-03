@@ -41,7 +41,7 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       index->index_->DeleteEntry(oldKey, *rid, exec_ctx_->GetTransaction());
       index->index_->InsertEntry(newKey, *rid, exec_ctx_->GetTransaction());
     }
-    
+
     if (!table_info_->table_->UpdateTuple(newTuple, *rid, exec_ctx_->GetTransaction())) {
       throw Exception("failed to update tuple");
     }

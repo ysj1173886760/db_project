@@ -28,7 +28,7 @@ void IndexScanExecutor::Init() {
 bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
   while (begin_ != end_) {
     *rid = (*begin_).second;
-    if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED && 
+    if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED &&
         !exec_ctx_->GetTransaction()->IsSharedLocked(*rid)) {
       exec_ctx_->GetLockManager()->LockShared(exec_ctx_->GetTransaction(), *rid);
     }

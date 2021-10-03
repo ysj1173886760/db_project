@@ -15,10 +15,11 @@
 #include <algorithm>
 #include <condition_variable>  // NOLINT
 #include <list>
+#include <map>
 #include <memory>
 #include <mutex>  // NOLINT
 #include <unordered_map>
-#include <map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -134,7 +135,7 @@ class LockManager {
   /** Runs cycle detection in the background. */
   void RunCycleDetection();
 
-  bool dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &in_loop);
+  bool dfs(txn_id_t cur, txn_id_t *cycle_point, txn_id_t *ans, bool *in_loop);
 
  private:
   std::mutex latch_;
