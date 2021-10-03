@@ -113,8 +113,62 @@ bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
 }
 
 bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
+  std::unique_lock<std::mutex> lck(latch_);
+
+  if (txn->GetState() == TransactionState::SHRINKING) {
+    txn->SetState(TransactionState::ABORTED);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
+    return false;
+  }
+  
+  if (lock_table_.count(rid) == 0) {
+    lock_table_.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(rid),
+                        std::forward_as_tuple());
+  }
+
+  LockRequestQueue *lock_queue = &lock_table_[rid];
+
+  // only one transaction can waiting for upgrading the lock
+  if (lock_queue->upgrading_) {
+    txn->SetState(TransactionState::ABORTED);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::UPGRADE_CONFLICT);
+    return false;
+  }
+
+  // find the corresponding request in queue
+  auto it = lock_queue->request_queue_.begin();
+  for (; it != lock_queue->request_queue_.end(); ++it) {
+    if (it->txn_id_ == txn->GetTransactionId()) {
+      break;
+    }
+  }
+
+  it->granted_ = false;
+  it->lock_mode_ = LockMode::EXCLUSIVE;
   txn->GetSharedLockSet()->erase(rid);
+  lock_queue->shared_count_--;
+  // notify that i'm waiting for upgrading
+  lock_queue->upgrading_ = true;
+
+  if (lock_queue->writing_ || lock_queue->shared_count_ > 0) {
+    lock_queue->cv_.wait(lck, [lock_queue, txn]() {
+                          return txn->GetState() == TransactionState::ABORTED ||
+                          (lock_queue->writing_ == false && lock_queue->shared_count_ == 0);
+                        });
+  }
+
+  if (txn->GetState() == TransactionState::ABORTED) {
+    lock_queue->request_queue_.erase(it);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::DEADLOCK);
+    return false;
+  }
+
+  it->granted_ = true;
   txn->GetExclusiveLockSet()->emplace(rid);
+  lock_queue->writing_ = true;
+  lock_queue->upgrading_ = false;
+
   return true;
 }
 
