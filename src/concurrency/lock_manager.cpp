@@ -190,7 +190,9 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
   if (it->lock_mode_ == LockMode::EXCLUSIVE) {
     lock_queue->writing_ = false;
     should_notify = true;
-    txn->SetState(TransactionState::SHRINKING);
+    if (txn->GetState() == TransactionState::GROWING) {
+      txn->SetState(TransactionState::SHRINKING);
+    }
   } else {
     if (--lock_queue->shared_count_ == 0) {
       should_notify = true;
@@ -198,7 +200,7 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
 
     // for read_commit, we release S lock immediately without entering shrinking phase
     // for read_uncommit, we don't have S lock
-    if (txn->GetIsolationLevel() != IsolationLevel::READ_COMMITTED) {
+    if (txn->GetIsolationLevel() != IsolationLevel::READ_COMMITTED && txn->GetState() == TransactionState::GROWING) {
       txn->SetState(TransactionState::SHRINKING);
     }
   }
