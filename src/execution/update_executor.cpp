@@ -40,6 +40,11 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       Tuple newKey(newTuple.KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
       index->index_->DeleteEntry(oldKey, *rid, exec_ctx_->GetTransaction());
       index->index_->InsertEntry(newKey, *rid, exec_ctx_->GetTransaction());
+      // i don't know why this will crash the program
+      // exec_ctx_->GetTransaction()->AppendTableWriteRecord(IndexWriteRecord(*rid, plan_->TableOid(), WType::INSERT,
+      // newKey, index->index_oid_, exec_ctx_->GetCatalog()));
+      // exec_ctx_->GetTransaction()->AppendTableWriteRecord(IndexWriteRecord(*rid, plan_->TableOid(), WType::DELETE,
+      // oldKey, index->index_oid_, exec_ctx_->GetCatalog()));
     }
 
     if (!table_info_->table_->UpdateTuple(newTuple, *rid, exec_ctx_->GetTransaction())) {

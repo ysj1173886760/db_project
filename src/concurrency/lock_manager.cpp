@@ -252,15 +252,15 @@ bool LockManager::dfs(txn_id_t cur, txn_id_t *cycle_point, txn_id_t *ans, bool *
 
 bool LockManager::HasCycle(txn_id_t *txn_id) {
   finished_.clear();
-  for (const auto &[cur, edges] : waits_for_) {
-    if (finished_.count(cur) != 0) {
+  for (const auto &cur_pair : waits_for_) {
+    if (finished_.count(cur_pair.first) != 0) {
       continue;
     }
 
     stack_.clear();
     txn_id_t cycle_point;
     bool in_loop = false;
-    if (dfs(cur, &cycle_point, txn_id, &in_loop)) {
+    if (dfs(cur_pair.first, &cycle_point, txn_id, &in_loop)) {
       return true;
     }
   }
@@ -307,8 +307,8 @@ void LockManager::RunCycleDetection() {
         txn->SetState(TransactionState::ABORTED);
         // remove this transaction
         waits_for_.erase(txn_id);
-        for (const auto &[cur, edges] : waits_for_) {
-          RemoveEdge(cur, txn_id);
+        for (const auto &cur_pair : waits_for_) {
+          RemoveEdge(cur_pair.first, txn_id);
         }
         lock_table_[rid_map_[txn_id]].cv_.notify_all();
       }

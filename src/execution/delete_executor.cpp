@@ -36,6 +36,8 @@ bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       for (const auto &index : index_list_) {
         Tuple key(tuple->KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
         index->index_->DeleteEntry(key, *rid, exec_ctx_->GetTransaction());
+        exec_ctx_->GetTransaction()->AppendTableWriteRecord(
+            IndexWriteRecord(*rid, plan_->TableOid(), WType::DELETE, key, index->index_oid_, exec_ctx_->GetCatalog()));
       }
     } else {
       throw Exception("failed to delete");
