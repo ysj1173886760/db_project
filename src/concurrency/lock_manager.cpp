@@ -234,6 +234,7 @@ bool LockManager::dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &
   }
 
   stack_.insert(cur);
+  sort(waits_for_[cur].begin(), waits_for_[cur].end());
   for (const auto &to : waits_for_[cur]) {
     if (stack_.count(to) != 0) {
       cycle_point = to;
@@ -257,7 +258,8 @@ bool LockManager::dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &
 }
 
 bool LockManager::HasCycle(txn_id_t *txn_id) {
-  for (const auto &cur : txn_id_set_) {
+  finished_.clear();
+  for (const auto &[cur, edges] : waits_for_) {
     if (finished_.count(cur) != 0) {
       continue;
     }
@@ -307,28 +309,20 @@ void LockManager::RunCycleDetection() {
       }
 
       // sort the edge
-      for (auto &[key, edges] : waits_for_) {
-        std::sort(edges.begin(), edges.end());
-        txn_id_set_.insert(key);
-      }
-
       txn_id_t txn_id;
       while (HasCycle(&txn_id)) {
         Transaction *txn = TransactionManager::GetTransaction(txn_id);
         txn->SetState(TransactionState::ABORTED);
         // remove this transaction
         waits_for_.erase(txn_id);
-        txn_id_set_.erase(txn_id);
-        for (const auto &cur: txn_id_set_) {
+        for (const auto &[cur, edges] : waits_for_) {
           RemoveEdge(cur, txn_id);
         }
         lock_table_[rid_map_[txn_id]].cv_.notify_all();
       }
 
       waits_for_.clear();
-      txn_id_set_.clear();
       rid_map_.clear();
-      finished_.clear();
     }
   }
 }
