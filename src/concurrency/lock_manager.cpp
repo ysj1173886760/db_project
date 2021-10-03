@@ -173,8 +173,44 @@ bool LockManager::LockUpgrade(Transaction *txn, const RID &rid) {
 }
 
 bool LockManager::Unlock(Transaction *txn, const RID &rid) {
+  std::lock_guard<std::mutex> lck(latch_);
+  bool should_notify = false;
+
   txn->GetSharedLockSet()->erase(rid);
   txn->GetExclusiveLockSet()->erase(rid);
+
+  LockRequestQueue *lock_queue = &lock_table_[rid];
+  auto it = lock_queue->request_queue_.begin();
+  for (; it != lock_queue->request_queue_.end(); ++it) {
+    if (it->txn_id_ == txn->GetTransactionId()) {
+      break;
+    }
+  }
+
+  if (it->lock_mode_ == LockMode::EXCLUSIVE) {
+    lock_queue->writing_ = false;
+    should_notify = true;
+    txn->SetState(TransactionState::SHRINKING);
+  } else {
+    if (--lock_queue->shared_count_ == 0) {
+      should_notify = true;
+    }
+
+    // for read_commit, we release S lock immediately without entering shrinking phase
+    // for read_uncommit, we don't have S lock
+    if (txn->GetIsolationLevel() != IsolationLevel::READ_COMMITTED) {
+      txn->SetState(TransactionState::SHRINKING);
+    }
+  }
+  
+  lock_queue->request_queue_.erase(it);
+
+  // really, i'm not sure whether i should call notify inside or outside the lock block.
+  // cppreference said we shouldn't put it inside the block. I did this just for the sake of simplicity
+  if (should_notify) {
+    lock_queue->cv_.notify_all();
+  }
+
   return true;
 }
 
