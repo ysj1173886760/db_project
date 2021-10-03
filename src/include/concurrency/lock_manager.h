@@ -133,6 +133,8 @@ class LockManager {
   /** Runs cycle detection in the background. */
   void RunCycleDetection();
 
+  bool dfs(txn_id_t cur, txn_id_t &cycle_point, txn_id_t &ans, bool &in_loop);
+
  private:
   std::mutex latch_;
   std::atomic<bool> enable_cycle_detection_;
@@ -142,6 +144,11 @@ class LockManager {
   std::unordered_map<RID, LockRequestQueue> lock_table_;
   /** Waits-for graph representation. */
   std::unordered_map<txn_id_t, std::vector<txn_id_t>> waits_for_;
+
+  std::unordered_map<txn_id_t, RID> rid_map_;
+  std::unordered_set<txn_id_t> txn_id_set_;
+  std::unordered_set<txn_id_t> finished_;
+  std::unordered_set<txn_id_t> stack_;
 };
 
 }  // namespace bustub
