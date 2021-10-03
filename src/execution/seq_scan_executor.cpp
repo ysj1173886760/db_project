@@ -24,7 +24,18 @@ void SeqScanExecutor::Init() {}
 
 bool SeqScanExecutor::Next(Tuple *tuple, RID *rid) {
   while (begin_ != end_) {
+    RID cur_rid = begin_->GetRid();
+    if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED && 
+        !exec_ctx_->GetTransaction()->IsSharedLocked(cur_rid) && 
+        !exec_ctx_->GetTransaction()->IsExclusiveLocked(cur_rid)) {
+      exec_ctx_->GetLockManager()->LockShared(exec_ctx_->GetTransaction(), cur_rid);
+    }
     *tuple = *begin_;
+    if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED && 
+        exec_ctx_->GetTransaction()->IsSharedLocked(cur_rid)) {
+      exec_ctx_->GetLockManager()->Unlock(exec_ctx_->GetTransaction(), cur_rid);
+    }
+
     ++begin_;
     if (plan_->GetPredicate() == nullptr ||
         plan_->GetPredicate()->Evaluate(tuple, &metatable_->schema_).GetAs<bool>()) {

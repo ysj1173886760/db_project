@@ -28,7 +28,15 @@ void IndexScanExecutor::Init() {
 bool IndexScanExecutor::Next(Tuple *tuple, RID *rid) {
   while (begin_ != end_) {
     *rid = (*begin_).second;
+    if (exec_ctx_->GetTransaction()->GetIsolationLevel() != IsolationLevel::READ_UNCOMMITTED && 
+        !exec_ctx_->GetTransaction()->IsSharedLocked(*rid)) {
+      exec_ctx_->GetLockManager()->LockShared(exec_ctx_->GetTransaction(), *rid);
+    }
     bool res = metatable_->table_->GetTuple(*rid, tuple, exec_ctx_->GetTransaction());
+    if (exec_ctx_->GetTransaction()->GetIsolationLevel() == IsolationLevel::READ_COMMITTED) {
+      exec_ctx_->GetLockManager()->Unlock(exec_ctx_->GetTransaction(), *rid);
+    }
+
     ++begin_;
     if (!res) {
       throw std::out_of_range("Failed to get tuple");

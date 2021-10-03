@@ -27,6 +27,13 @@ void UpdateExecutor::Init() { child_executor_->Init(); }
 
 bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   if (child_executor_->Next(tuple, rid)) {
+    // upgrade lock
+    if (exec_ctx_->GetTransaction()->IsSharedLocked(*rid)) {
+      exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
+    } else if (!exec_ctx_->GetTransaction()->IsExclusiveLocked(*rid)) {
+      exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+    }
+
     Tuple newTuple = GenerateUpdatedTuple(*tuple);
     for (const auto &index : index_list_) {
       Tuple oldKey(tuple->KeyFromTuple(table_info_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));
@@ -34,6 +41,7 @@ bool UpdateExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
       index->index_->DeleteEntry(oldKey, *rid, exec_ctx_->GetTransaction());
       index->index_->InsertEntry(newKey, *rid, exec_ctx_->GetTransaction());
     }
+    
     if (!table_info_->table_->UpdateTuple(newTuple, *rid, exec_ctx_->GetTransaction())) {
       throw Exception("failed to update tuple");
     }

@@ -27,6 +27,11 @@ void DeleteExecutor::Init() { child_executor_->Init(); }
 
 bool DeleteExecutor::Next([[maybe_unused]] Tuple *tuple, RID *rid) {
   if (child_executor_->Next(tuple, rid)) {
+    if (exec_ctx_->GetTransaction()->IsSharedLocked(*rid)) {
+      exec_ctx_->GetLockManager()->LockUpgrade(exec_ctx_->GetTransaction(), *rid);
+    } else if (!exec_ctx_->GetTransaction()->IsExclusiveLocked(*rid)) {
+      exec_ctx_->GetLockManager()->LockExclusive(exec_ctx_->GetTransaction(), *rid);
+    }
     if (metatable_->table_->MarkDelete(*rid, exec_ctx_->GetTransaction())) {
       for (const auto &index : index_list_) {
         Tuple key(tuple->KeyFromTuple(metatable_->schema_, index->key_schema_, index->index_->GetKeyAttrs()));

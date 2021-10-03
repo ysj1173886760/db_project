@@ -188,6 +188,11 @@ bool LockManager::Unlock(Transaction *txn, const RID &rid) {
     }
   }
 
+  // failed to find lock request
+  if (it == lock_queue->request_queue_.end()) {
+    return false;
+  }
+
   if (it->lock_mode_ == LockMode::EXCLUSIVE) {
     lock_queue->writing_ = false;
     should_notify = true;
