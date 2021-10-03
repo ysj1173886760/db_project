@@ -49,7 +49,7 @@ class LockManager {
     std::condition_variable cv_;  // for notifying blocked transactions on this rid
     bool upgrading_{false};
     bool writing_{false};
-    unsigned int shared_count{0};
+    unsigned int shared_count_{0};
   };
 
  public:

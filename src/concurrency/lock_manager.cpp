@@ -66,13 +66,49 @@ bool LockManager::LockShared(Transaction *txn, const RID &rid) {
 
   txn->GetSharedLockSet()->emplace(rid);
   it->granted_ = true;
-  ++lock_queue->shared_count;
+  ++lock_queue->shared_count_;
 
   return true;
 }
 
 bool LockManager::LockExclusive(Transaction *txn, const RID &rid) {
+  std::unique_lock<std::mutex> lck(latch_);
+
+  if (txn->GetState() == TransactionState::SHRINKING) {
+    txn->SetState(TransactionState::ABORTED);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::LOCK_ON_SHRINKING);
+    return false;
+  }
+
+  if (lock_table_.count(rid) == 0) {
+    lock_table_.emplace(std::piecewise_construct,
+                        std::forward_as_tuple(rid),
+                        std::forward_as_tuple());
+  }
+
+  // then find the corresponding lock queue and append the lock request
+  LockRequestQueue *lock_queue = &lock_table_[rid];
+  lock_queue->request_queue_.emplace_back(LockRequest(txn->GetTransactionId(), LockMode::EXCLUSIVE));
+  auto it = std::prev(lock_queue->request_queue_.end());
+
+  if (lock_queue->writing_ || lock_queue->shared_count_ > 0) {
+    lock_queue->cv_.wait(lck, [lock_queue, txn]() {
+                          return txn->GetState() == TransactionState::ABORTED ||
+                          (lock_queue->writing_ == false && lock_queue->shared_count_ == 0);
+                        });
+  }
+
+  if (txn->GetState() == TransactionState::ABORTED) {
+    // erase the request
+    lock_queue->request_queue_.erase(it);
+    throw TransactionAbortException(txn->GetTransactionId(), AbortReason::DEADLOCK);
+    return false;
+  }
+
   txn->GetExclusiveLockSet()->emplace(rid);
+  lock_queue->writing_ = true;
+  it->granted_ = true;
+
   return true;
 }
 
