@@ -47,7 +47,9 @@ class LockManager {
    public:
     std::list<LockRequest> request_queue_;
     std::condition_variable cv_;  // for notifying blocked transactions on this rid
-    bool upgrading_ = false;
+    bool upgrading_{false};
+    bool writing_{false};
+    unsigned int shared_count{0};
   };
 
  public:
